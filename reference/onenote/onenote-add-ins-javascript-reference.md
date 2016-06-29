@@ -10,7 +10,7 @@ You can use two JavaScript APIs to interact with the objects and metadata in a O
 
 The APIs are accessed through Office.js. During this preview period, reference it from the following location:
 
-    https://richapiaddin.azurewebsites.net/App/Office/Office.js
+- https://richapiaddin.azurewebsites.net/App/Office/Office.js
 
 
 ## OneNote JavaScript API
