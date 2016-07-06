@@ -1,122 +1,65 @@
-# OneNote JavaScript API programming overview (Preview)
+# OneNote add-ins overview (Preview)
 
-Read on to learn more about OneNote add-ins, or [get started creating one](onenote-add-ins-getting-started.md).
+<!-- Introduction--for an example, see [Word add-ins overview](https://dev.office.com/docs/add-ins/word/word-add-ins-programming-overview).
 
-## Overview 
+- Describe common scenarios.
+- Describe what add-ins can do.
+- Include an image of an add-in that illustrates scenario/best practices.
+- Specify target platforms.
 
-OneNote introduces a JavaScript API (in preview) for OneNote Online add-ins. You can create task pane add-ins, content add-ins, and add-in commands that interact with OneNote objects and connect to web services or other web-based resources.
+-->
 
-Add-ins consist of two basic components:
+You can create task pane add-ins, content add-ins, and add-in commands that interact with OneNote objects and connect to web services or other web-based resources. Currently, OneNote add-ins are only supported for OneNote Online. 
 
-- A **web application** consisting of a webpage and any required JavaScript, CSS, or other files. These files are hosted on a web server or web hosting service, such as Microsoft Azure. In OneNote Online, the web application displays in a browser control or iframe.
-	
-- An **XML manifest** that specifies the URL of the add-in's webpage and any access requirements, settings, and capabilities for the add-in. This file is stored on the client. OneNote add-ins use the same [manifest](https://dev.office.com/docs/add-ins/overview/add-in-manifests) format as other Office Add-ins.
 
-**Office Add-in = Manifest + Webpage**
+##  JavaScript APIs for OneNote
 
-![An Office add-in consists of a manifest and webpage](../../images/onenote-add-in.png)
+<!-- Introduce the APIs used to develop add-ins, including client-specific APIs and Office.js. Explain the scenarios in which to use them. Link to relevant reference documentation.
 
-### Using the JavaScript API
+-->
 
-Add-ins use the runtime context of the host application to access the JavaScript API. The API has two layers: 
+You can use two sets of JavaScript APIs to interact with the objects and metadata in a OneNote notebook. 
 
-- A **rich API** for OneNote-specific operations, accessed through the **Application** object.
-- A **common API** that's shared across Office applications, accessed through the **Document** object.
+- The [OneNote JavaScript API](../../reference/onenote/onenote-add-ins-javascript-reference.md). 
+ This is a strongly-typed object model that you can use to create OneNote add-ins for OneNote Online. This API uses promises, and provides access to OneNote-specific objects like [sections](../../reference/onenote/section.md), [pages](../../reference/onenote/page.md), and [paragraphs](../../reference/onenote/paragraph.md). 
 
-#### Accessing the rich API through the *Application* object
+- The [JavaScript API for Office](https://dev.office.com/reference/add-ins/javascript-api-for-office?product=word), which was introduced in Office 2013. 
+ This is a shared API -- many of the objects can be used in add-ins hosted by two or more Office clients. This API uses callbacks extensively. 
 
-Use the **Application** object to access OneNote objects such as **Notebook**, **Section**, and **Page**. With rich APIs, you run batch operations on proxy objects. The basic flow goes something like this: 
+We recommend that you use the OneNote JavaScript API because it better aligns with OneNote functionality and the object model is easier to use. For example, the following code adds a page to the current section.
 
-1- Get the application instance from the context.
-
-2- Create a proxy that represents the OneNote object you want to work with. You interact synchronously with proxy objects by reading and writing their properties and calling their methods. 
-
-3- Call **load** on the proxy to fill it with the property values specified in the parameter. This call is added to the queue of commands. 
-
-   Method calls to the API (such as `context.application.getActiveSection().pages;`) are also added to the queue.
-    
-4- Call **context.sync** to run all queued commands in the order that they were queued. This synchronizes the state between your running script and the real objects, and by retrieving properties of loaded OneNote objects for use in your script. You can use the returned promise object for chaining additional actions.
-
-For example: 
-
-```
-    function getPagesInSection() {
-        OneNote.run(function (context) {
-            
-            // Get the pages in the current section.
-            var pages = context.application.getActiveSection().pages;
-            
-            // Queue a command to load the id and title for each page.            
-            pages.load('id,title');
-            
-            // Run the queued commands, and return a promise to indicate task completion.
-            return context.sync()
-                .then(function () {
-                    
-                    // Read the id and title of each page. 
-                    $.each(pages.items, function(index, page) {
-                        var pageId = page.id;
-                        var pageTitle = page.title;
-                        console.log(pageTitle + ': ' + pageId); 
-                    });
-                })
-                .catch(function (error) {
-                    app.showNotification("Error: " + error);
-                    console.log("Error: " + error);
-                    if (error instanceof OfficeExtension.Error) {
-                        console.log("Debug info: " + JSON.stringify(error.debugInfo));
-                    }
-                });
+```js
+OneNote.run(function (context) {
+    var page = context.application.getActiveSection().addPage("My new page");        
+    page.load('id,title');
+    return context.sync()
+        .then(function () {
+            console.log("Page name: " + page.title);
+            console.log("Page ID: " + page.id);
         });
-    }
+})
 ```
 
-You can find supported OneNote objects and operations in the [API reference](../../reference/onenote/onenote-add-ins-javascript-reference.md).
-
-### Accessing the common API through the *Document* object
-
-Use the **Document** object to access the common API, such as the [getSelectedDataAsync](https://dev.office.com/reference/add-ins/shared/document.getselecteddataasync)
-and [setSelectedDataAsync](https://dev.office.com/reference/add-ins/shared/document.setselecteddataasync) methods. 
-
-For example:  
-
-```
-function getSelectionFromPage() {
-    Office.context.document.getSelectedDataAsync(
-        Office.CoercionType.Text,
-        { valueFormat: "unformatted" },
-        function (asyncResult) {
-            var error = asyncResult.error;
-            if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-                console.log(error.message);
-            }
-            else $('#input').val(asyncResult.value);
-        });
-}
-```
-OneNote add-ins support only the following common APIs:
-
-| API | Notes |
-|:------|:------|
-| [Office.context.document.getSelectedDataAsync](https://msdn.microsoft.com/en-us/library/office/fp142294.aspx) | **Office.CoercionType.Text** and **Office.CoercionType.Matrix** only |
-| [Office.context.document.setSelectedDataAsync](https://msdn.microsoft.com/en-us/library/office/fp142145.aspx) | **Office.CoercionType.Text**, **Office.CoercionType.Image**, and **Office.CoercionType.Html** only | 
-| [var mySetting = Office.context.document.settings.get(name);](https://msdn.microsoft.com/en-us/library/office/fp142180.aspx) | Settings are supported by content add-ins only | 
-| [Office.context.document.settings.set(name, value);](https://msdn.microsoft.com/en-us/library/office/fp161063.aspx) | Settings are supported by content add-ins only | 
-| [Office.EventType.DocumentSelectionChanged](https://dev.office.com/reference/add-ins/shared/document.selectionchanged.event) ||
-
-In general, you only use the common API to do something that isn't supported in the rich API. To learn more about using the common API, see the Office Add-ins [documentation](https://dev.office.com/docs/add-ins/overview/office-add-ins) and [reference](https://dev.office.com/reference/add-ins/javascript-api-for-office).
+Currently, OneNote Online add-ins support the OneNote JavaScript API and some of the shared API. For details, see the [OneNote API reference documentation](../../reference/onenote/onenote-add-ins-javascript-reference.md).
 
 
-<a name="om-diagram"></a>
-## OneNote object model diagram 
-The following diagram represents what's currently available in the OneNote JavaScript API.
+## Next steps
 
-  ![OneNote object model diagram](../../images/onenote-om.png)
+Ready to create your first OneNote add-in? See [Build your first OneNote add-in (Preview)](onenote-add-ins-getting-started.md). Use the [add-in manifest](../overview/add-in-manifests.md) to describe where your add-in is hosted and how it is displayed, and define permissions and other information.
 
+To learn more about how to design a world class OneNote add-in that creates a compelling experience for your users, see [Design guidelines](../design/add-in-design.md) and [Best practices](../design/add-in-development-best-practices.md).
 
-## Additional Resources
+<!-- Does this apply to OneNote yet? 
+After you develop your add-in, you can [publish](../publish/publish.md) it to a network share, to an app catalog, or to the Office Store.
+-->
 
-- [Build your first OneNote add-in (Preview)](onenote-add-ins-getting-started.md)
+## What's next for OneNote add-ins
+
+<!-- Describe and link to APIs available on Open Spec page. Link to change log if applicable. Provide a roadmap for new APIs and features.
+
+-->
+
+## Additional resources
+
+- [Office Add-ins platform overview](../overview/office-add-ins.md)
 - [OneNote JavaScript API reference (Preview)](../../reference/onenote/onenote-add-ins-javascript-reference.md)
-- [Rubric Grader sample (Preview)](https://github.com/OfficeDev/OneNote-Add-in-Rubric-Grader-Preview)
-- [Office Add-ins platform overview](https://dev.office.com/docs/add-ins/overview/office-add-ins)
